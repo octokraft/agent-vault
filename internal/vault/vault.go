@@ -190,6 +190,12 @@ func (v *Vault) IsExpired(name string) bool {
 	return secret.IsExpired()
 }
 
+// SetPassphrase changes the vault passphrase and salt for re-encryption.
+func (v *Vault) SetPassphrase(newPassphrase, newSaltBase64 string) {
+	v.passphrase = newPassphrase
+	v.file.Salt = newSaltBase64
+}
+
 // Save encrypts and writes the vault to disk.
 func (v *Vault) Save() error {
 	plaintext, err := json.Marshal(v.data)

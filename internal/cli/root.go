@@ -28,6 +28,8 @@ func init() {
 	rootCmd.AddCommand(pipeCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(verifyCmd)
+	rootCmd.AddCommand(rekeyCmd)
+	rootCmd.AddCommand(importCmd)
 }
 
 func Execute() error {
