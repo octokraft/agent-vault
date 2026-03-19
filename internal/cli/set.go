@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/octokraft/agent-vault/internal/vault"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
-var setFromStdin bool
+var (
+	setFromStdin bool
+	setTTL       string
+)
 
 var setCmd = &cobra.Command{
 	Use:   "set <name>",
@@ -60,8 +64,17 @@ The secret value is never echoed or logged.`,
 		}
 		defer lock.Unlock()
 
+		var ttl time.Duration
+		if setTTL != "" {
+			var err error
+			ttl, err = time.ParseDuration(setTTL)
+			if err != nil {
+				return fmt.Errorf("invalid TTL %q: %w", setTTL, err)
+			}
+		}
+
 		existed := v.Has(name)
-		v.Set(name, value)
+		v.Set(name, value, ttl)
 
 		if err := v.Save(); err != nil {
 			return err
@@ -78,4 +91,5 @@ The secret value is never echoed or logged.`,
 
 func init() {
 	setCmd.Flags().BoolVar(&setFromStdin, "stdin", false, "read secret value from stdin")
+	setCmd.Flags().StringVar(&setTTL, "ttl", "", "secret time-to-live (e.g. 24h, 720h, 30m)")
 }

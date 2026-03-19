@@ -18,6 +18,19 @@ type Secret struct {
 	Value     string `json:"value"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+}
+
+// IsExpired returns true if the secret has a TTL and it has passed.
+func (s *Secret) IsExpired() bool {
+	if s.ExpiresAt == "" {
+		return false
+	}
+	expires, err := time.Parse(time.RFC3339, s.ExpiresAt)
+	if err != nil {
+		return false
+	}
+	return time.Now().UTC().After(expires)
 }
 
 // VaultData is the decrypted inner data of the vault.
@@ -104,19 +117,38 @@ func Open(path, passphrase string) (*Vault, error) {
 	}, nil
 }
 
-// Set stores or updates a secret.
-func (v *Vault) Set(name, value string) {
+// Set stores or updates a secret. TTL of 0 means no expiry.
+func (v *Vault) Set(name, value string, ttl time.Duration) {
 	now := time.Now().UTC().Format(time.RFC3339)
+	var expiresAt string
+	if ttl > 0 {
+		expiresAt = time.Now().UTC().Add(ttl).Format(time.RFC3339)
+	}
+
 	if existing, ok := v.data.Secrets[name]; ok {
 		existing.Value = value
 		existing.UpdatedAt = now
+		existing.ExpiresAt = expiresAt
 	} else {
 		v.data.Secrets[name] = &Secret{
 			Value:     value,
 			CreatedAt: now,
 			UpdatedAt: now,
+			ExpiresAt: expiresAt,
 		}
 	}
+}
+
+// getSecret retrieves a secret, checking expiry. Returns error if expired.
+func (v *Vault) getSecret(name string) (*Secret, error) {
+	secret, ok := v.data.Secrets[name]
+	if !ok {
+		return nil, fmt.Errorf("secret not found: %s", name)
+	}
+	if secret.IsExpired() {
+		return nil, fmt.Errorf("secret %q has expired (was valid until %s)", name, secret.ExpiresAt)
+	}
+	return secret, nil
 }
 
 // List returns sorted secret names.
@@ -167,20 +199,12 @@ func (v *Vault) Save() error {
 // Exec runs a command with secrets injected as environment variables.
 // envMap maps ENV_VAR_NAME -> secret_name.
 func (v *Vault) Exec(envMap map[string]string, command string, args []string) error {
-	// Build clean environment — scrub vault-related vars to prevent leakage
-	env := make([]string, 0, len(os.Environ()))
-	for _, e := range os.Environ() {
-		key := e[:strings.IndexByte(e, '=')]
-		switch key {
-		case "AGENT_VAULT_PASSPHRASE", "AGENT_VAULT_PATH":
-			continue // scrub sensitive vault config from child process
-		}
-		env = append(env, e)
-	}
+	// Build clean environment — scrub ALL vault-related vars to prevent leakage
+	env := scrubEnv(os.Environ())
 	for envName, secretName := range envMap {
-		secret, ok := v.data.Secrets[secretName]
-		if !ok {
-			return fmt.Errorf("secret not found: %s", secretName)
+		secret, err := v.getSecret(secretName)
+		if err != nil {
+			return err
 		}
 		env = append(env, envName+"="+secret.Value)
 	}
@@ -206,14 +230,16 @@ func (v *Vault) Exec(envMap map[string]string, command string, args []string) er
 
 // Pipe writes a secret to a command's stdin.
 func (v *Vault) Pipe(secretName string, newline bool, command string, args []string) error {
-	secret, ok := v.data.Secrets[secretName]
-	if !ok {
-		return fmt.Errorf("secret not found: %s", secretName)
+	secret, err := v.getSecret(secretName)
+	if err != nil {
+		return err
 	}
 
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Scrub vault env vars from piped command too
+	cmd.Env = scrubEnv(os.Environ())
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -243,6 +269,19 @@ func (v *Vault) Pipe(secretName string, newline bool, command string, args []str
 	}
 
 	return nil
+}
+
+// scrubEnv removes all AGENT_VAULT_* variables from an environment slice.
+func scrubEnv(environ []string) []string {
+	clean := make([]string, 0, len(environ))
+	for _, e := range environ {
+		key := e[:strings.IndexByte(e, '=')]
+		if strings.HasPrefix(key, "AGENT_VAULT_") {
+			continue
+		}
+		clean = append(clean, e)
+	}
+	return clean
 }
 
 // GetPassphrase reads the vault passphrase from the environment or returns an error.

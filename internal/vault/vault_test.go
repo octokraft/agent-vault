@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func tempVaultPath(t *testing.T) string {
@@ -65,9 +66,9 @@ func TestSetAndList(t *testing.T) {
 	path := tempVaultPath(t)
 	v, _ := Create(path, "pass")
 
-	v.Set("beta", "val-b")
-	v.Set("alpha", "val-a")
-	v.Set("gamma", "val-c")
+	v.Set("beta", "val-b", 0)
+	v.Set("alpha", "val-a", 0)
+	v.Set("gamma", "val-c", 0)
 
 	names := v.List()
 	if len(names) != 3 {
@@ -85,7 +86,7 @@ func TestSetPersists(t *testing.T) {
 	pass := "pass"
 
 	v, _ := Create(path, pass)
-	v.Set("api-key", "sk-12345")
+	v.Set("api-key", "sk-12345", 0)
 	if err := v.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -108,8 +109,8 @@ func TestSetUpdate(t *testing.T) {
 	path := tempVaultPath(t)
 	v, _ := Create(path, "pass")
 
-	v.Set("key", "old-value")
-	v.Set("key", "new-value")
+	v.Set("key", "old-value", 0)
+	v.Set("key", "new-value", 0)
 
 	if v.Count() != 1 {
 		t.Fatalf("updating should not create duplicate, got count=%d", v.Count())
@@ -120,7 +121,7 @@ func TestDelete(t *testing.T) {
 	path := tempVaultPath(t)
 	v, _ := Create(path, "pass")
 
-	v.Set("to-delete", "val")
+	v.Set("to-delete", "val", 0)
 	if !v.Delete("to-delete") {
 		t.Fatal("Delete should return true for existing secret")
 	}
@@ -138,7 +139,7 @@ func TestHas(t *testing.T) {
 	path := tempVaultPath(t)
 	v, _ := Create(path, "pass")
 
-	v.Set("exists", "val")
+	v.Set("exists", "val", 0)
 
 	if !v.Has("exists") {
 		t.Fatal("Has should return true for existing secret")
@@ -188,6 +189,56 @@ func TestZeroize(t *testing.T) {
 	for i, b := range data {
 		if b != 0 {
 			t.Fatalf("byte %d not zeroed: %d", i, b)
+		}
+	}
+}
+
+func TestSecretExpiry(t *testing.T) {
+	path := tempVaultPath(t)
+	v, _ := Create(path, "pass")
+
+	// Secret with past expiry
+	v.Set("expired", "val", 0)
+	v.data.Secrets["expired"].ExpiresAt = time.Now().UTC().Add(-1 * time.Hour).Format(time.RFC3339)
+
+	_, err := v.getSecret("expired")
+	if err == nil {
+		t.Fatal("expected error for expired secret")
+	}
+
+	// Secret with future expiry
+	v.Set("valid", "val", 24*time.Hour)
+
+	_, err = v.getSecret("valid")
+	if err != nil {
+		t.Fatalf("expected valid secret, got: %v", err)
+	}
+
+	// Secret with no expiry
+	v.Set("forever", "val", 0)
+
+	_, err = v.getSecret("forever")
+	if err != nil {
+		t.Fatalf("expected valid secret, got: %v", err)
+	}
+}
+
+func TestScrubEnv(t *testing.T) {
+	environ := []string{
+		"HOME=/home/user",
+		"AGENT_VAULT_PASSPHRASE=secret",
+		"AGENT_VAULT_PATH=/tmp/vault",
+		"AGENT_VAULT_CUSTOM=foo",
+		"PATH=/usr/bin",
+	}
+
+	clean := scrubEnv(environ)
+	if len(clean) != 2 {
+		t.Fatalf("expected 2 env vars after scrub, got %d: %v", len(clean), clean)
+	}
+	for _, e := range clean {
+		if e == "AGENT_VAULT_PASSPHRASE=secret" || e == "AGENT_VAULT_PATH=/tmp/vault" || e == "AGENT_VAULT_CUSTOM=foo" {
+			t.Fatalf("vault env var not scrubbed: %s", e)
 		}
 	}
 }
