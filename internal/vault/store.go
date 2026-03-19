@@ -43,9 +43,11 @@ func Load(path string) (*VaultFile, error) {
 	return &vf, nil
 }
 
-// Save writes a vault file to disk with secure permissions.
+// Save writes a vault file to disk atomically with secure permissions.
+// Uses write-to-temp-then-rename to prevent corruption on crash.
 func Save(path string, vf *VaultFile) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("creating vault directory: %w", err)
 	}
 
@@ -54,8 +56,38 @@ func Save(path string, vf *VaultFile) error {
 		return fmt.Errorf("marshaling vault: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("writing vault file: %w", err)
+	// Write to temporary file in the same directory (ensures same filesystem for rename)
+	tmp, err := os.CreateTemp(dir, ".vault-*.tmp")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	// Set secure permissions before writing data
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("setting permissions: %w", err)
+	}
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing temp file: %w", err)
+	}
+
+	// Sync to ensure data is on disk before rename
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("syncing temp file: %w", err)
+	}
+	tmp.Close()
+
+	// Atomic rename
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("renaming vault file: %w", err)
 	}
 
 	return nil

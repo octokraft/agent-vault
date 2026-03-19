@@ -1194,7 +1194,7 @@ footer .container {
           <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
         </div>
         <h3>Policy Engine</h3>
-        <p>Define which commands can access which secrets. Dangerous commands like <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">cat</code> and <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">echo</code> are blocked by default.</p>
+        <p>Blocks shells, interpreters, and exfiltration commands by default. Per-secret command allowlists. Argument inspection catches <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">-c</code> and <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">--eval</code> flags.</p>
       </div>
 
       <div class="feature-card">
@@ -1209,8 +1209,8 @@ footer .container {
         <div class="feature-icon">
           <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         </div>
-        <h3>Simple CLI Interface</h3>
-        <p>Four core commands: <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">set</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">exec</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">pipe</code>, and <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">list</code>. No bloat, no learning curve. Works the Unix way.</p>
+        <h3>Full-Featured CLI</h3>
+        <p>12 commands: <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">exec</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">pipe</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">import</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">rekey</code>, <code style="font-family:var(--font-mono);font-size:0.82rem;padding:1px 5px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;color:var(--accent);">verify</code>, TTL expiry, and more. Works the Unix way.</p>
       </div>
 
     </div>
@@ -1401,20 +1401,26 @@ footer .container {
 
       <div class="security-card">
         <span class="sec-number">02</span>
-        <h3><span class="sec-icon"></span> Command Allowlisting</h3>
-        <p>The policy engine controls which commands can receive secrets. By default, commands like <code>cat</code>, <code>echo</code>, <code>tee</code>, and <code>xargs</code> are blocked to prevent secrets from leaking into stdout or logs.</p>
+        <h3><span class="sec-icon"></span> Shell &amp; Interpreter Blocking</h3>
+        <p>The policy engine blocks shells (<code>bash</code>, <code>zsh</code>, <code>sh</code>), interpreters (<code>python</code>, <code>node</code>, <code>ruby</code>), and exfiltration commands (<code>cat</code>, <code>echo</code>, <code>curl</code>) by default. Argument inspection catches <code>-c</code> and <code>--eval</code> flags.</p>
       </div>
 
       <div class="security-card">
         <span class="sec-number">03</span>
-        <h3><span class="sec-icon"></span> Encryption at Rest</h3>
-        <p>All secrets are encrypted with AES-256-GCM. The encryption key is derived from the human operator's passphrase using Argon2id with tunable memory and iteration parameters.</p>
+        <h3><span class="sec-icon"></span> Encryption &amp; Atomic Writes</h3>
+        <p>AES-256-GCM with Argon2id key derivation. Atomic write-then-rename prevents vault corruption on crash. Exclusive file locking prevents concurrent access. Memory is zeroed after use.</p>
       </div>
 
       <div class="security-card">
         <span class="sec-number">04</span>
-        <h3><span class="sec-icon"></span> Process Isolation</h3>
-        <p>Secrets are injected directly into the target process via environment variables or stdin pipes. They are never written to disk, passed as CLI arguments, or stored in the agent's context window.</p>
+        <h3><span class="sec-icon"></span> Process Isolation &amp; Env Scrubbing</h3>
+        <p>Secrets are injected via env vars or stdin pipes — never written to disk or CLI args. All <code>AGENT_VAULT_*</code> env vars are scrubbed from child processes so the passphrase itself cannot leak.</p>
+      </div>
+
+      <div class="security-card">
+        <span class="sec-number">05</span>
+        <h3><span class="sec-icon"></span> TTL &amp; Secret Expiry</h3>
+        <p>Secrets support time-to-live via <code>--ttl</code>. Expired secrets are rejected at injection time. The <code>verify</code> command reports vault health and expired entries.</p>
       </div>
 
     </div>
