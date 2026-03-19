@@ -84,6 +84,7 @@ func Open(path, passphrase string) (*Vault, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer Zeroize(plaintext)
 
 	var data VaultData
 	if err := json.Unmarshal(plaintext, &data); err != nil {
@@ -153,6 +154,7 @@ func (v *Vault) Save() error {
 	if err != nil {
 		return err
 	}
+	defer Zeroize(plaintext)
 
 	if err := v.file.EncryptPayload(v.passphrase, plaintext); err != nil {
 		return err
@@ -180,6 +182,13 @@ func (v *Vault) Exec(envMap map[string]string, command string, args []string) er
 		return fmt.Errorf("command not found: %s", command)
 	}
 
+	// Audit log
+	secretNames := make([]string, 0, len(envMap))
+	for _, sn := range envMap {
+		secretNames = append(secretNames, sn)
+	}
+	AuditExec(secretNames, command)
+
 	// Replace the current process with the command.
 	// Secrets exist only in the new process's environment.
 	argv := append([]string{command}, args...)
@@ -205,6 +214,8 @@ func (v *Vault) Pipe(secretName string, newline bool, command string, args []str
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting command: %w", err)
 	}
+
+	AuditPipe(secretName, command)
 
 	value := secret.Value
 	if newline {

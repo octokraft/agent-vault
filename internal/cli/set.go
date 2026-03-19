@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/octokraft/agent-vault/internal/vault"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -22,6 +23,10 @@ The secret value is never echoed or logged.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
+
+		if err := vault.ValidateSecretName(name); err != nil {
+			return fmt.Errorf("invalid secret name: %w", err)
+		}
 
 		v, err := openVault()
 		if err != nil {
