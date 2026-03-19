@@ -35,6 +35,7 @@ func init() {
 	rootCmd.AddCommand(rekeyCmd)
 	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(wrapCmd)
 }
 
 func Execute() error {
