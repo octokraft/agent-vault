@@ -80,3 +80,27 @@ func openVault() (*vault.Vault, error) {
 	}
 	return vault.Open(path, passphrase)
 }
+
+// openVaultLocked opens the vault with an exclusive file lock for write operations.
+func openVaultLocked() (*vault.Vault, *vault.FileLock, error) {
+	path := resolveVaultPath()
+
+	lock, err := vault.Lock(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	passphrase, err := getOrPromptPassphrase("Vault passphrase: ")
+	if err != nil {
+		lock.Unlock()
+		return nil, nil, err
+	}
+
+	v, err := vault.Open(path, passphrase)
+	if err != nil {
+		lock.Unlock()
+		return nil, nil, err
+	}
+
+	return v, lock, nil
+}

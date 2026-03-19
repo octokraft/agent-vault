@@ -28,15 +28,10 @@ The secret value is never echoed or logged.`,
 			return fmt.Errorf("invalid secret name: %w", err)
 		}
 
-		v, err := openVault()
-		if err != nil {
-			return err
-		}
-
+		// Read the secret value before locking (may need terminal interaction)
 		var value string
 
 		if setFromStdin || !term.IsTerminal(int(os.Stdin.Fd())) {
-			// Read from stdin
 			scanner := bufio.NewScanner(os.Stdin)
 			if scanner.Scan() {
 				value = scanner.Text()
@@ -45,7 +40,6 @@ The secret value is never echoed or logged.`,
 				return fmt.Errorf("reading stdin: %w", err)
 			}
 		} else {
-			// Read from terminal (hidden)
 			fmt.Fprintf(os.Stderr, "Enter value for %q: ", name)
 			valBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 			fmt.Fprintln(os.Stderr)
@@ -59,6 +53,12 @@ The secret value is never echoed or logged.`,
 		if value == "" {
 			return fmt.Errorf("secret value cannot be empty")
 		}
+
+		v, lock, err := openVaultLocked()
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
 
 		existed := v.Has(name)
 		v.Set(name, value)

@@ -14,10 +14,11 @@ var rmCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		v, err := openVault()
+		v, lock, err := openVaultLocked()
 		if err != nil {
 			return err
 		}
+		defer lock.Unlock()
 
 		if !v.Delete(name) {
 			return fmt.Errorf("secret %q not found", name)

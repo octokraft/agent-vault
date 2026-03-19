@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -166,8 +167,16 @@ func (v *Vault) Save() error {
 // Exec runs a command with secrets injected as environment variables.
 // envMap maps ENV_VAR_NAME -> secret_name.
 func (v *Vault) Exec(envMap map[string]string, command string, args []string) error {
-	// Resolve all secrets first
-	env := os.Environ()
+	// Build clean environment — scrub vault-related vars to prevent leakage
+	env := make([]string, 0, len(os.Environ()))
+	for _, e := range os.Environ() {
+		key := e[:strings.IndexByte(e, '=')]
+		switch key {
+		case "AGENT_VAULT_PASSPHRASE", "AGENT_VAULT_PATH":
+			continue // scrub sensitive vault config from child process
+		}
+		env = append(env, e)
+	}
 	for envName, secretName := range envMap {
 		secret, ok := v.data.Secrets[secretName]
 		if !ok {
