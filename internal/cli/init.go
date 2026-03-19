@@ -52,14 +52,29 @@ var initCmd = &cobra.Command{
 }
 
 func getOrPromptPassphrase(prompt string) (string, error) {
-	// Check environment first
+	// Priority 1: --passphrase-fd flag (most secure — not visible in /proc)
+	if passphraseFd >= 0 {
+		f := os.NewFile(uintptr(passphraseFd), "passphrase-fd")
+		if f == nil {
+			return "", fmt.Errorf("invalid file descriptor: %d", passphraseFd)
+		}
+		defer f.Close()
+		data := make([]byte, 4096)
+		n, err := f.Read(data)
+		if err != nil && n == 0 {
+			return "", fmt.Errorf("reading from fd %d: %w", passphraseFd, err)
+		}
+		return strings.TrimSpace(string(data[:n])), nil
+	}
+
+	// Priority 2: environment variable
 	if p := os.Getenv("AGENT_VAULT_PASSPHRASE"); p != "" {
 		return p, nil
 	}
 
-	// Prompt on terminal
+	// Priority 3: interactive terminal prompt
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", fmt.Errorf("no TTY available and AGENT_VAULT_PASSPHRASE not set")
+		return "", fmt.Errorf("no TTY available and AGENT_VAULT_PASSPHRASE not set\n  Tip: use --passphrase-fd or set AGENT_VAULT_PASSPHRASE")
 	}
 
 	fmt.Fprint(os.Stderr, prompt)

@@ -5,7 +5,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var vaultPath string
+var (
+	vaultPath    string
+	passphraseFd int
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "agent-vault",
@@ -20,6 +23,7 @@ Your secrets flow through pipes, not prompts.`,
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&vaultPath, "vault", "", "vault file path (default: ~/.agent-vault/vault.enc)")
+	rootCmd.PersistentFlags().IntVar(&passphraseFd, "passphrase-fd", -1, "read passphrase from file descriptor (safer than env var)")
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(setCmd)
 	rootCmd.AddCommand(listCmd)
