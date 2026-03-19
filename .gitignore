@@ -1,0 +1,23 @@
+# Binaries
+/agent-vault
+dist/
+*.exe
+
+# Vault files (never commit secrets!)
+*.enc
+.agent-vault/
+.agent-vault-policy.json
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
