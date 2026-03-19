@@ -32,7 +32,7 @@ func Lock(vaultPath string) (*FileLock, error) {
 // Unlock releases the lock and removes the lock file.
 func (fl *FileLock) Unlock() {
 	if fl.file != nil {
-		syscall.Flock(int(fl.file.Fd()), syscall.LOCK_UN)
+		_ = syscall.Flock(int(fl.file.Fd()), syscall.LOCK_UN)
 		fl.file.Close()
 		os.Remove(fl.path)
 	}

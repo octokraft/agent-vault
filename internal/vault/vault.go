@@ -274,7 +274,7 @@ func (v *Vault) Pipe(secretName string, newline bool, command string, args []str
 
 	if _, err := io.WriteString(stdin, value); err != nil {
 		stdin.Close()
-		cmd.Wait()
+		_ = cmd.Wait()
 		return fmt.Errorf("writing to stdin: %w", err)
 	}
 	stdin.Close()
