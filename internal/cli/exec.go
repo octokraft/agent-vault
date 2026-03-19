@@ -68,6 +68,9 @@ Examples:
 			if err := pol.CheckCommand(args[0]); err != nil {
 				return err
 			}
+			if err := pol.CheckArgs(args[0], args[1:]); err != nil {
+				return err
+			}
 			for _, secretName := range envMap {
 				if err := pol.CheckSecretCommand(secretName, args[0]); err != nil {
 					return err

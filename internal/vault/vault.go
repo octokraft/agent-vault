@@ -181,6 +181,15 @@ func (v *Vault) Count() int {
 	return len(v.data.Secrets)
 }
 
+// IsExpired returns true if the named secret exists and has expired.
+func (v *Vault) IsExpired(name string) bool {
+	secret, ok := v.data.Secrets[name]
+	if !ok {
+		return false
+	}
+	return secret.IsExpired()
+}
+
 // Save encrypts and writes the vault to disk.
 func (v *Vault) Save() error {
 	plaintext, err := json.Marshal(v.data)

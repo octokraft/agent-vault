@@ -27,6 +27,7 @@ func init() {
 	rootCmd.AddCommand(execCmd)
 	rootCmd.AddCommand(pipeCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(verifyCmd)
 }
 
 func Execute() error {

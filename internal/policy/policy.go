@@ -25,6 +25,17 @@ var DangerousCommands = []string{
 	"xxd", "hexdump", "od", "strings", "base64",
 }
 
+// ShellCommands are interpreters that can execute arbitrary code.
+// When a secret is injected into a shell, the shell can trivially leak it.
+var ShellCommands = []string{
+	"sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh",
+	"python", "python3", "python2",
+	"ruby", "irb",
+	"perl", "perl5",
+	"node", "nodejs", "deno", "bun",
+	"lua", "php",
+}
+
 // LoadPolicy reads a policy file from disk.
 func LoadPolicy(path string) (*Policy, error) {
 	data, err := os.ReadFile(path)
@@ -40,10 +51,13 @@ func LoadPolicy(path string) (*Policy, error) {
 	return &p, nil
 }
 
-// DefaultPolicy returns a secure default policy that blocks dangerous commands.
+// DefaultPolicy returns a secure default policy that blocks dangerous commands and shells.
 func DefaultPolicy() *Policy {
+	denied := make([]string, 0, len(DangerousCommands)+len(ShellCommands))
+	denied = append(denied, DangerousCommands...)
+	denied = append(denied, ShellCommands...)
 	return &Policy{
-		DeniedCommands: DangerousCommands,
+		DeniedCommands: denied,
 	}
 }
 
@@ -68,6 +82,21 @@ func (p *Policy) CheckCommand(command string) error {
 		return fmt.Errorf("command %q is not in the allowed commands list", base)
 	}
 
+	return nil
+}
+
+// DangerousArgs are argument patterns that suggest shell-like execution.
+var DangerousArgs = []string{"-c", "--eval", "-e", "eval", "-exec"}
+
+// CheckArgs inspects command arguments for patterns that suggest shell wrapping.
+func (p *Policy) CheckArgs(command string, args []string) error {
+	for _, arg := range args {
+		for _, dangerous := range DangerousArgs {
+			if arg == dangerous {
+				return fmt.Errorf("argument %q to %q could enable arbitrary code execution — use --no-policy to override", arg, filepath.Base(command))
+			}
+		}
+	}
 	return nil
 }
 
